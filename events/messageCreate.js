@@ -53,6 +53,12 @@ module.exports = {
                 },
                 { upsert: true, new: true }
             );
+            console.log('Salvando score no MongoDB com os dados:', {
+                userId: message.author.id,
+                guildId: message.guild.id,
+                grade: quiz.grade,
+                score: quiz.score
+            });
 
             client.activeQuizzes.delete(sessionKey);
             return;
@@ -71,6 +77,28 @@ module.exports = {
             quiz.timeout = setTimeout(async () => {
                 await message.channel.send(`⏰ Tempo esgotado! Fim do quiz. Você acertou ${quiz.score} de ${quiz.kanjis.length}.`);
                 client.activeQuizzes.delete(sessionKey);
+                await UserScore.findOneAndUpdate(
+                    {
+                        userId: message.author.id,
+                        guildId: message.guild.id,
+                        grade: quiz.grade  // ✅ novo campo
+                    },
+                    {
+                        $inc: {
+                            totalPoints: quiz.score,
+                            quizzesPlayed: 1
+                        },
+                        lastScore: quiz.score,
+                        lastPlayedAt: new Date()
+                    },
+                    { upsert: true, new: true }
+                );
+                console.log('Salvando score no MongoDB com os dados:', {
+                    userId: message.author.id,
+                    guildId: message.guild.id,
+                    grade: quiz.grade,
+                    score: quiz.score
+                });
             }, 15_000);
         }
     }

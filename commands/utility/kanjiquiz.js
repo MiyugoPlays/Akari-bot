@@ -138,7 +138,7 @@ module.exports = {
                         score: 0,
                         kanjis: kanjiData,
                         startTime: Date.now(),
-                        grade
+                        grade: grade
                     });
 
                     const firstKanji = kanjiData[0].kanji;
@@ -149,6 +149,49 @@ module.exports = {
                         content: `🧠 Iniciando quiz com ${amount} kanjis!\nQual o significado do kanji abaixo?`,
                         files: [attachment]
                     });
+                    // ⏱️ Timeout de 15 segundos para encerrar quiz automaticamente
+                    const timeout = setTimeout(async () => {
+                        const session = interaction.client.activeQuizzes.get(sessionKey);
+                        if (!session) return;
+
+                        // Salvar no MongoDB mesmo sem resposta
+                        try {
+                            await UserScore.findOneAndUpdate(
+                                {
+                                    userId: interaction.user.id,
+                                    guildId: interaction.guildId,
+                                    grade: session.grade
+                                },
+                                {
+                                    $inc: {
+                                        totalPoints: session.score,
+                                        quizzesPlayed: 1
+                                    },
+                                    lastScore: session.score,
+                                    lastPlayedAt: new Date()
+                                },
+                                { upsert: true, new: true }
+                            );
+
+                            console.log('⏰ Tempo esgotado. Score salvo:', {
+                                userId: interaction.user.id,
+                                guildId: interaction.guildId,
+                                grade: session.grade,
+                                score: session.score
+                            });
+
+                            await interaction.followUp({
+                                content: `⏰ Tempo esgotado! Fim do quiz.\nVocê marcou **${session.score}** ponto(s).`
+                            }).catch(console.error);
+                        } catch (error) {
+                            console.error('❌ Erro ao salvar score após timeout:', error);
+                        }
+
+                        interaction.client.activeQuizzes.delete(sessionKey);
+                    }, 15_000);
+
+                    // Salva o timeout na sessão para poder limpar depois
+                    interaction.client.activeQuizzes.get(sessionKey).timeout = timeout;
                 }
             }
 
